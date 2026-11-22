@@ -87,3 +87,42 @@ def upload_video(
 
     logger.info("Upload complete: %s", url)
     return url
+
+
+def download_extra_lora(dest_dir: str) -> str | None:
+    """Fetch the configured extra LoRA (config.EXTRA_LORA_KEY) from the
+    default bucket into dest_dir (ComfyUI's models/loras). Returns the local
+    filename, or None when no extra LoRA is configured. A configured-but-
+    unfetchable LoRA raises UploadError: silently generating without a LoRA
+    the caller explicitly set up would hand back the wrong video."""
+    if not config.EXTRA_LORA_KEY:
+        return None
+    bucket = config.S3_BUCKET_DEFAULT
+    if not bucket:
+        raise UploadError(
+            "EXTRA_LORA_KEY is set but no S3 bucket is configured.",
+            hint="Set S3_BUCKET_DEFAULT so the worker can fetch the LoRA file.",
+        )
+    name = os.path.basename(config.EXTRA_LORA_KEY)
+    dest = os.path.join(dest_dir, name)
+    if os.path.exists(dest):
+        logger.info("Extra LoRA already present: %s", dest)
+        return name
+    os.makedirs(dest_dir, exist_ok=True)
+    client = _get_s3_client()
+    logger.info(
+        "Downloading extra LoRA s3://%s/%s -> %s",
+        bucket, config.EXTRA_LORA_KEY, dest,
+    )
+    try:
+        client.download_file(bucket, config.EXTRA_LORA_KEY, dest)
+    except Exception as e:
+        raise UploadError(
+            f"Extra LoRA download failed: {e}",
+            hint="Check EXTRA_LORA_KEY matches the object key in the bucket.",
+        )
+    logger.info(
+        "Extra LoRA ready: %s (%.1f MB)",
+        dest, os.path.getsize(dest) / (1024 * 1024),
+    )
+    return name

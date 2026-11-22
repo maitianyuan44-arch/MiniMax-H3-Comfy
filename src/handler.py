@@ -33,7 +33,7 @@ from src.comfy_client import ComfyClient, ComfyError, new_client_id
 from src.errors import InferenceError, ValidationError, format_error
 from src.image import fetch_image, fetch_last_image, fetch_ref_images, preprocess_image
 from src.model_link import ModelLinkError, link_model_cache
-from src.storage import upload_video
+from src.storage import download_extra_lora, upload_video
 from src.validator import validate_input
 from src.workflow import OUTPUT_NODE_ID, VAE_VIDEO_FILES, build_r2v_workflow, build_workflow
 
@@ -47,6 +47,7 @@ _COMFY_READY = threading.Event()
 _COMFY_ERROR: Exception | None = None
 _comfy_process: subprocess.Popen | None = None
 _client = ComfyClient(host=config.COMFY_HOST, port=config.COMFY_PORT)
+_EXTRA_LORA_NAME: str | None = None
 
 
 # -- ComfyUI subprocess boot ───────────────────────────────────────────────────
@@ -56,11 +57,20 @@ def _boot_comfy_bg() -> None:
     ComfyUI, and wait for its HTTP server to answer. Runs on a background
     thread so request validation can overlap the boot, same pattern as the
     diffusers sibling's background model load."""
-    global _COMFY_ERROR, _comfy_process
+    global _COMFY_ERROR, _comfy_process, _EXTRA_LORA_NAME
     try:
         logger.info("Linking Model Cache snapshot into ComfyUI models/...")
         snapshot_root = link_model_cache(os.path.join(config.COMFY_DIR, "models"))
         logger.info("Model weights linked from %s", snapshot_root)
+
+        _EXTRA_LORA_NAME = download_extra_lora(
+            os.path.join(config.COMFY_DIR, "models", "loras")
+        )
+        if _EXTRA_LORA_NAME:
+            logger.info(
+                "Extra LoRA enabled: %s (default strength %.2f)",
+                _EXTRA_LORA_NAME, config.EXTRA_LORA_STRENGTH,
+            )
 
         logger.info("Starting ComfyUI subprocess in %s", config.COMFY_DIR)
         comfy_args = [
@@ -213,6 +223,8 @@ def _run_job(job_id: str, params: dict) -> dict:
             turbo_mode=config.TURBO_MODE,
             first_frame_name=first_name,
             last_frame_name=last_name,
+            extra_lora_name=_EXTRA_LORA_NAME if params["lora_strength"] > 0 else None,
+            extra_lora_strength=params["lora_strength"],
             **common,
         )
 
@@ -263,6 +275,8 @@ def _run_job(job_id: str, params: dict) -> dict:
         "audio_sampling_rate": None if params["mute"] else 32000,
         "attention": params["attention"],
         "video_vae": params["video_vae"],
+        "lora": _EXTRA_LORA_NAME,
+        "lora_strength": params["lora_strength"] if _EXTRA_LORA_NAME else 0,
         "ignored_params": params["ignored_params"],
     }
     if is_r2v:

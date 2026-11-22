@@ -188,3 +188,13 @@ POD_IDLE_TIMEOUT_S = int(os.getenv("POD_IDLE_TIMEOUT_S", "180"))
 POD_MAX_LIFETIME_S = int(os.getenv("POD_MAX_LIFETIME_S", "10800"))
 RUNPOD_POD_ID = os.getenv("RUNPOD_POD_ID", "")
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY", "")
+
+
+# -- Extra (user) LoRA ---------------------------------------------------------
+# One additional LoRA stacked after the Turbo LoRA (see workflow._model_branch).
+# The file is NOT part of the Model Cache snapshot: at boot the worker fetches
+# it from its own S3 bucket (storage.download_extra_lora), so swapping LoRAs
+# is an env change + worker restart, never a rebuild. EXTRA_LORA_KEY is the
+# object key inside S3_BUCKET_DEFAULT; empty disables the feature.
+EXTRA_LORA_KEY = os.getenv("EXTRA_LORA_KEY", "")
+EXTRA_LORA_STRENGTH = float(os.getenv("EXTRA_LORA_STRENGTH", "0.5"))
