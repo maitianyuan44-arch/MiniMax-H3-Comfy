@@ -222,16 +222,22 @@ def validate_input(inp: dict) -> dict:
     if not isinstance(mute, bool):
         raise ValidationError("mute must be a boolean.")
 
-    # Extra LoRA strength. The LoRA file itself is a deploy-time choice
-    # (config.EXTRA_LORA_KEY); per request only its strength is tunable,
-    # with 0 disabling it for that job.
-    lora_strength = inp.get("lora_strength", config.EXTRA_LORA_STRENGTH)
-    if not isinstance(lora_strength, (int, float)) or isinstance(lora_strength, bool) \
-            or lora_strength < 0 or lora_strength > 2:
-        raise ValidationError(
-            "lora_strength must be a number between 0 and 2.",
-            hint=f"You sent lora_strength={lora_strength!r}.",
-        )
+    # Extra LoRA strengths. The LoRA files themselves are deploy-time
+    # choices (config.EXTRA_LORA_KEY{,_2,_3}); per request only their
+    # strengths are tunable, with 0 disabling that slot for the job.
+    def _strength(field: str, default: float) -> float:
+        v = inp.get(field, default)
+        if not isinstance(v, (int, float)) or isinstance(v, bool) \
+                or v < 0 or v > 2:
+            raise ValidationError(
+                f"{field} must be a number between 0 and 2.",
+                hint=f"You sent {field}={v!r}.",
+            )
+        return float(v)
+
+    lora_strength = _strength("lora_strength", config.EXTRA_LORA_STRENGTH)
+    lora_strength_2 = _strength("lora_strength_2", config.EXTRA_LORA_STRENGTH_2)
+    lora_strength_3 = _strength("lora_strength_3", config.EXTRA_LORA_STRENGTH_3)
 
     video_vae = inp.get("video_vae", config.VIDEO_VAE_DEFAULT)
     if video_vae not in config.VIDEO_VAES:
@@ -278,6 +284,8 @@ def validate_input(inp: dict) -> dict:
         "height": height,
         "mute": mute,
         "lora_strength": float(lora_strength),
+        "lora_strength_2": float(lora_strength_2),
+        "lora_strength_3": float(lora_strength_3),
         "attention": attention,
         "video_vae": video_vae,
         "ignored_params": ignored,

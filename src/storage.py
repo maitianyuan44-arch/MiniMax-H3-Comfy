@@ -89,40 +89,45 @@ def upload_video(
     return url
 
 
-def download_extra_lora(dest_dir: str) -> str | None:
-    """Fetch the configured extra LoRA (config.EXTRA_LORA_KEY) from the
-    default bucket into dest_dir (ComfyUI's models/loras). Returns the local
-    filename, or None when no extra LoRA is configured. A configured-but-
-    unfetchable LoRA raises UploadError: silently generating without a LoRA
-    the caller explicitly set up would hand back the wrong video."""
-    if not config.EXTRA_LORA_KEY:
-        return None
+def _download_one_lora(key: str, dest_dir: str) -> str:
+    """Fetch one LoRA object from the default bucket into dest_dir.
+    Returns the local filename. Raises UploadError when unfetchable."""
     bucket = config.S3_BUCKET_DEFAULT
     if not bucket:
         raise UploadError(
-            "EXTRA_LORA_KEY is set but no S3 bucket is configured.",
+            "An extra LoRA is configured but no S3 bucket is set.",
             hint="Set S3_BUCKET_DEFAULT so the worker can fetch the LoRA file.",
         )
-    name = os.path.basename(config.EXTRA_LORA_KEY)
+    name = os.path.basename(key)
     dest = os.path.join(dest_dir, name)
     if os.path.exists(dest):
         logger.info("Extra LoRA already present: %s", dest)
         return name
     os.makedirs(dest_dir, exist_ok=True)
     client = _get_s3_client()
-    logger.info(
-        "Downloading extra LoRA s3://%s/%s -> %s",
-        bucket, config.EXTRA_LORA_KEY, dest,
-    )
+    logger.info("Downloading extra LoRA s3://%s/%s -> %s", bucket, key, dest)
     try:
-        client.download_file(bucket, config.EXTRA_LORA_KEY, dest)
+        client.download_file(bucket, key, dest)
     except Exception as e:
         raise UploadError(
             f"Extra LoRA download failed: {e}",
-            hint="Check EXTRA_LORA_KEY matches the object key in the bucket.",
+            hint=f"Check the key {key!r} matches the object key in the bucket.",
         )
     logger.info(
         "Extra LoRA ready: %s (%.1f MB)",
         dest, os.path.getsize(dest) / (1024 * 1024),
     )
     return name
+
+
+def download_extra_loras(dest_dir: str) -> list:
+    """Fetch every configured extra LoRA (config.EXTRA_LORAS) from the
+    default bucket into dest_dir (ComfyUI's models/loras). Returns a list
+    with one entry per slot: the local filename, or None when that slot is
+    not configured. A configured-but-unfetchable LoRA raises UploadError:
+    silently generating without a LoRA the caller explicitly set up would
+    hand back the wrong video."""
+    return [
+        _download_one_lora(key, dest_dir) if key else None
+        for key, _strength in config.EXTRA_LORAS
+    ]

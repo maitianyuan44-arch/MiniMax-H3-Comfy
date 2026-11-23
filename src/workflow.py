@@ -180,12 +180,11 @@ def _model_branch(
     nodes: dict,
     turbo: bool,
     lora_name: str,
-    extra_lora_name: str | None = None,
-    extra_lora_strength: float = 0.5,
+    extra_loras: list | None = None,
 ) -> list:
-    """Adds the Turbo LoRA node when `turbo`, then the caller's extra LoRA
-    (if any) on top of it, and returns the MODEL ref the scheduler and
-    guider read from."""
+    """Adds the Turbo LoRA node when `turbo`, then the caller's extra LoRAs
+    (up to three, as (name, strength) pairs) on top of it, and returns the
+    MODEL ref the scheduler and guider read from."""
     model_ref = ["unet_loader", 0]
     if turbo:
         nodes["lora"] = {
@@ -197,16 +196,19 @@ def _model_branch(
             },
         }
         model_ref = ["lora", 0]
-    if extra_lora_name:
-        nodes["lora_extra"] = {
+    for i, (name, strength) in enumerate(extra_loras or []):
+        if not name:
+            continue
+        node_id = "lora_extra" if i == 0 else f"lora_extra_{i + 1}"
+        nodes[node_id] = {
             "class_type": "LoraLoaderModelOnly",
             "inputs": {
                 "model": model_ref,
-                "lora_name": extra_lora_name,
-                "strength_model": extra_lora_strength,
+                "lora_name": name,
+                "strength_model": strength,
             },
         }
-        model_ref = ["lora_extra", 0]
+        model_ref = [node_id, 0]
     return model_ref
 
 
@@ -319,8 +321,7 @@ def build_workflow(
     filename_prefix: str = "minimax_h3/output",
     attention: str | None = None,
     video_vae: str = "fp16",
-    extra_lora_name: str | None = None,
-    extra_lora_strength: float = 0.5,
+    extra_loras: list | None = None,
 ) -> dict:
     """Build the ComfyUI API-format prompt dict for one T2V/I2V job.
 
@@ -338,9 +339,7 @@ def build_workflow(
     length = frame_length(seconds)
 
     nodes = _shared_loaders(UNET_NAME, video_vae)
-    model_ref = _model_branch(
-        nodes, turbo_mode, LORA_NAME, extra_lora_name, extra_lora_strength
-    )
+    model_ref = _model_branch(nodes, turbo_mode, LORA_NAME, extra_loras)
     if steps is None:
         steps = TURBO_STEPS if turbo_mode else BASE_STEPS
 

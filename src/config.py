@@ -190,11 +190,21 @@ RUNPOD_POD_ID = os.getenv("RUNPOD_POD_ID", "")
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY", "")
 
 
-# -- Extra (user) LoRA ---------------------------------------------------------
-# One additional LoRA stacked after the Turbo LoRA (see workflow._model_branch).
-# The file is NOT part of the Model Cache snapshot: at boot the worker fetches
-# it from its own S3 bucket (storage.download_extra_lora), so swapping LoRAs
-# is an env change + worker restart, never a rebuild. EXTRA_LORA_KEY is the
-# object key inside S3_BUCKET_DEFAULT; empty disables the feature.
+# -- Extra (user) LoRAs --------------------------------------------------------
+# Up to three additional LoRAs stacked after the Turbo LoRA (see
+# workflow._model_branch). The files are NOT part of the Model Cache
+# snapshot: at boot the worker fetches them from its own S3 bucket
+# (storage.download_extra_loras), so swapping LoRAs is an env change +
+# worker restart, never a rebuild. EXTRA_LORA_KEY{,_2,_3} are object keys
+# inside S3_BUCKET_DEFAULT; empty disables that slot.
 EXTRA_LORA_KEY = os.getenv("EXTRA_LORA_KEY", "")
 EXTRA_LORA_STRENGTH = float(os.getenv("EXTRA_LORA_STRENGTH", "0.5"))
+EXTRA_LORA_KEY_2 = os.getenv("EXTRA_LORA_KEY_2", "")
+EXTRA_LORA_STRENGTH_2 = float(os.getenv("EXTRA_LORA_STRENGTH_2", "0.5"))
+EXTRA_LORA_KEY_3 = os.getenv("EXTRA_LORA_KEY_3", "")
+EXTRA_LORA_STRENGTH_3 = float(os.getenv("EXTRA_LORA_STRENGTH_3", "0.5"))
+EXTRA_LORAS = [
+    (EXTRA_LORA_KEY, EXTRA_LORA_STRENGTH),
+    (EXTRA_LORA_KEY_2, EXTRA_LORA_STRENGTH_2),
+    (EXTRA_LORA_KEY_3, EXTRA_LORA_STRENGTH_3),
+]
